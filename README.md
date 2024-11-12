@@ -128,7 +128,3 @@ The code name **John** is inspired by [**John Manjirō**](https://en.wikipedia.o
    ```bash
    pnpm lint
    ```
-
-```
-
-```
