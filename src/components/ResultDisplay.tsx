@@ -1,14 +1,29 @@
-import React, { useState } from 'react';
-import { Typography, Card, Box, FormControlLabel, Switch } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import {
+  Typography,
+  Card,
+  Box,
+  FormControlLabel,
+  Switch,
+  Chip,
+} from '@mui/material';
 import { PieChart } from '@mui/x-charts/PieChart';
+import { zodResponseFormat } from 'openai/helpers/zod';
+import { z } from 'zod';
 
-import { useAppContext } from '@/app/appContext';
-import { JsonResult } from '@/types/jsonResultTypes';
-//import jsonResult from '@/lib/dummyJsonResult';
+//import { useAppContext } from '@/app/appContext';
+//import { JsonResult } from '@/types/jsonResultTypes';
+import jsonResult from '@/lib/dummyJsonResult';
+
+const SkillResponseSchema = z.object({
+  skills: z.array(z.string()),
+});
 
 const ResultDisplay: React.FC = () => {
-  const { jsonResult } = useAppContext() as { jsonResult: JsonResult };
+  //const { jsonResult } = useAppContext() as { jsonResult: JsonResult };
 
+  const [skills, setSkills] = useState<string[]>([]);
   const [showScores, setShowScores] = useState(false);
 
   const calculateTopAccents = (accents: Record<string, number>) => {
@@ -27,6 +42,33 @@ const ResultDisplay: React.FC = () => {
       ([token]) => !/^<\|.*\|>$/.test(token)
     );
   };
+
+  const extractSkills = async (transcript: string) => {
+    try {
+      const response = await axios.post('/api/chat', {
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'user',
+            content: `Extract skills from the following transcript: ${transcript}`,
+          },
+        ],
+        response_format: zodResponseFormat(SkillResponseSchema, 'skills'),
+      });
+      console.log(response);
+
+      const extractedSkills = JSON.parse(response.data.reply).skills || [];
+      setSkills(extractedSkills);
+    } catch (error) {
+      console.error('Error extracting skills:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (jsonResult.transcript) {
+      extractSkills(jsonResult.transcript);
+    }
+  }, [jsonResult.transcript]);
 
   return jsonResult === null ? null : (
     <Card sx={{ padding: '1.25rem', marginTop: '1.25rem' }}>
@@ -94,6 +136,25 @@ const ResultDisplay: React.FC = () => {
           )}
         </Box>
       </Box>
+
+      {/* Skills Section */}
+      {skills.length > 0 && (
+        <Box sx={{ marginBottom: '1.25rem' }}>
+          <Typography variant="h6" gutterBottom>
+            Skills
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            {skills.map((skill, index) => (
+              <Chip
+                key={index}
+                label={skill}
+                color="primary"
+                variant="outlined"
+              />
+            ))}
+          </Box>
+        </Box>
+      )}
 
       {/* Mean Score */}
       <Box sx={{ marginBottom: '1.25rem' }}>
