@@ -1,11 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const rateLimit = new Map<string, { count: number; timestamp: number }>();
+const MAX_REQUESTS = 100;
+const TIME_FRAME = 60 * 60 * 1000; // 1hr in milliseconds
+
+function checkRateLimit(ip: string) {
+  const currentTime = Date.now();
+  const data = rateLimit.get(ip) || { count: 0, timestamp: currentTime };
+
+  if (currentTime - data.timestamp > TIME_FRAME) {
+    rateLimit.set(ip, { count: 1, timestamp: currentTime });
+    return false;
+  }
+
+  if (data.count >= MAX_REQUESTS) return true;
+
+  rateLimit.set(ip, { count: data.count + 1, timestamp: data.timestamp });
+  return false;
+}
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for') || 'localhost';
+  if (checkRateLimit(ip)) {
+    return NextResponse.json(
+      { error: 'Too many requests, please try again later.' },
+      { status: 429 }
+    );
+  }
+
   try {
     const {
       model = 'gpt-4o-mini',
