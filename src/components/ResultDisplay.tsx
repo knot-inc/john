@@ -12,8 +12,6 @@ import { PieChart } from '@mui/x-charts/PieChart';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
 
-//import { useAppContext } from '@/app/appContext';
-//import { JsonResult } from '@/types/jsonResultTypes';
 import jsonResult from '@/lib/dummyJsonResult';
 
 const SkillResponseSchema = z.object({
