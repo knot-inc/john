@@ -225,6 +225,12 @@ const ResultDisplay: React.FC = () => {
                 color={hoveredSkill === originalText ? 'secondary' : 'primary'}
                 onMouseEnter={() => setHoveredSkill(originalText)}
                 onMouseLeave={() => setHoveredSkill(null)}
+                onClick={() =>
+                  window.open(
+                    `https://www.google.com/search?q=${correctedSkill}`,
+                    '_blank'
+                  )
+                }
               />
             ))}
           </Box>
