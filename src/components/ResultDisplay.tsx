@@ -17,15 +17,25 @@ import { z } from 'zod';
 import jsonResult from '@/lib/dummyJsonResult';
 
 const SkillResponseSchema = z.object({
-  skills: z.array(z.string()),
+  skills: z.array(
+    z.object({
+      originalText: z.string(),
+      correctedSkill: z.string(),
+    })
+  ),
 });
 
 const ResultDisplay: React.FC = () => {
+  //const { jsonResult } = useAppContext() as { jsonResult: JsonResult };
+
   const [modifiedTranscript, setModifiedTranscript] = useState<string | null>(
     null
   );
-  const [skills, setSkills] = useState<string[]>([]);
+  const [skills, setSkills] = useState<
+    { originalText: string; correctedSkill: string }[]
+  >([]);
   const [showScores, setShowScores] = useState(false);
+  const [hoveredSkill, setHoveredSkill] = useState<string | null>(null);
 
   const calculateTopAccents = (accents: Record<string, number>) => {
     return Object.entries(accents)
@@ -74,8 +84,12 @@ const ResultDisplay: React.FC = () => {
         model: 'gpt-4o-mini',
         messages: [
           {
+            role: 'system',
+            content: `Extract technology skills from the following transcript. Return each identified skill term with its original mention in the transcript, and provide the standardized skill term, if different. Use standardized terminology similar to those found in Wikipedia technology skill entries.`,
+          },
+          {
             role: 'user',
-            content: `Extract skills from the following transcript: ${transcript}`,
+            content: `Transcript: ${transcript}`,
           },
         ],
         response_format: zodResponseFormat(SkillResponseSchema, 'skills'),
@@ -85,6 +99,25 @@ const ResultDisplay: React.FC = () => {
     } catch (error) {
       console.error('Error extracting skills:', error);
     }
+  };
+
+  const renderHighlightedTranscript = (transcript: string) => {
+    if (!transcript) return null;
+
+    const parts = transcript.split(new RegExp(`(${hoveredSkill})`, 'gi'));
+    return parts.map((part, index) => (
+      <span
+        key={index}
+        style={{
+          backgroundColor:
+            part.toLowerCase() === hoveredSkill?.toLowerCase()
+              ? 'rgba(213, 0, 249, 0.2)'
+              : 'transparent',
+        }}
+      >
+        {part}
+      </span>
+    ));
   };
 
   useEffect(() => {
@@ -158,7 +191,9 @@ const ResultDisplay: React.FC = () => {
               )
             )
           ) : (
-            <Typography variant="body1">{jsonResult.transcript}</Typography>
+            <Typography variant="body1">
+              {renderHighlightedTranscript(jsonResult.transcript)}
+            </Typography>
           )}
         </Box>
       </Box>
@@ -169,7 +204,9 @@ const ResultDisplay: React.FC = () => {
           <Typography variant="h6" gutterBottom>
             Modified Transcript
           </Typography>
-          <Typography variant="body1">{modifiedTranscript}</Typography>
+          <Typography variant="body1">
+            {renderHighlightedTranscript(modifiedTranscript)}
+          </Typography>
         </Box>
       )}
 
@@ -180,12 +217,14 @@ const ResultDisplay: React.FC = () => {
             Skills
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-            {skills.map((skill, index) => (
+            {skills.map(({ originalText, correctedSkill }, index) => (
               <Chip
                 key={index}
-                label={skill}
-                color="primary"
+                label={correctedSkill}
                 variant="outlined"
+                color={hoveredSkill === originalText ? 'secondary' : 'primary'}
+                onMouseEnter={() => setHoveredSkill(originalText)}
+                onMouseLeave={() => setHoveredSkill(null)}
               />
             ))}
           </Box>
