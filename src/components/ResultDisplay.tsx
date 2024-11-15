@@ -13,9 +13,9 @@ import Markdown from 'react-markdown';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
 
-//import { useAppContext } from '@/app/appContext';
-//import { JsonResult } from '@/types/jsonResultTypes';
-import jsonResult from '@/lib/dummyJsonResult';
+import { useAppContext } from '@/app/appContext';
+import { JsonResult } from '@/types/jsonResultTypes';
+//import jsonResult from '@/lib/dummyJsonResult';
 
 const SkillResponseSchema = z.object({
   skills: z.array(
@@ -27,7 +27,7 @@ const SkillResponseSchema = z.object({
 });
 
 const ResultDisplay: React.FC = () => {
-  //const { jsonResult } = useAppContext() as { jsonResult: JsonResult };
+  const { jsonResult } = useAppContext() as { jsonResult: JsonResult };
 
   const [transcript, setTranscript] = useState<string | null>(null);
   const [modifiedTranscript, setModifiedTranscript] = useState<string | null>(

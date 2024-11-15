@@ -90,6 +90,7 @@ The code name **John** is inspired by [**John Manjirō**](https://en.wikipedia.o
 - **`pnpm start`**: Start the production server.
 - **`pnpm lint`**: Run ESLint to check for code quality issues.
 - **`pnpm format`**: Format the codebase with Prettier.
+- **`pnpm pre-push`**: Format the code, run lint checks, and build the production Docker image.
 
 ### Docker Compose
 
