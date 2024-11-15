@@ -29,6 +29,7 @@ const SkillResponseSchema = z.object({
 const ResultDisplay: React.FC = () => {
   //const { jsonResult } = useAppContext() as { jsonResult: JsonResult };
 
+  const [transcript, setTranscript] = useState<string | null>(null);
   const [modifiedTranscript, setModifiedTranscript] = useState<string | null>(
     null
   );
@@ -56,18 +57,18 @@ const ResultDisplay: React.FC = () => {
     );
   };
 
-  const modifyTranscript = async (transcript: string) => {
+  const modifyTranscript = async (text: string) => {
     try {
       const response = await axios.post('/api/chat', {
         model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
-            content: `Please review and correct the transcript for accuracy. Check for any misheard words, missing words, or punctuation errors. Edit for clarity and readability. Output just the corrected transcript no other messages.`,
+            content: `Please review and correct the transcript for accuracy. Check for any misheard words, missing words, or punctuation errors. Edit for clarity and readability. Output just the corrected transcript no other messages. \nYou should output html, each line format: start_t-end_t: text <br />`,
           },
           {
             role: 'user',
-            content: `Transcript: ${transcript}`,
+            content: `Transcript: ${text}`,
           },
         ],
       });
@@ -76,11 +77,11 @@ const ResultDisplay: React.FC = () => {
       return modifiedTranscript;
     } catch (error) {
       console.error('Error correcting transcript:', error);
-      return transcript;
+      return text;
     }
   };
 
-  const extractSkills = async (transcript: string) => {
+  const extractSkills = async (text: string) => {
     try {
       const response = await axios.post('/api/chat', {
         model: 'gpt-4o-mini',
@@ -91,7 +92,7 @@ const ResultDisplay: React.FC = () => {
           },
           {
             role: 'user',
-            content: `Transcript: ${transcript}`,
+            content: `Transcript: ${text}`,
           },
         ],
         response_format: zodResponseFormat(SkillResponseSchema, 'skills'),
@@ -124,29 +125,44 @@ const ResultDisplay: React.FC = () => {
     }
   };
 
-  const renderHighlightedTranscript = (transcript: string) => {
-    if (!transcript) return null;
+  const renderHighlighted = (text: string) => {
+    if (!text) return '';
 
-    const parts = transcript.split(new RegExp(`(${hoveredSkill})`, 'gi'));
-    return parts.map((part, index) => (
-      <span
-        key={index}
-        style={{
-          backgroundColor:
-            part.toLowerCase() === hoveredSkill?.toLowerCase()
-              ? 'rgba(213, 0, 249, 0.2)'
-              : 'transparent',
-        }}
-      >
-        {part}
-      </span>
-    ));
+    const parts = text.split(new RegExp(`(${hoveredSkill})`, 'gi'));
+    let renderText = parts
+      .map((part) =>
+        part.toLowerCase() === hoveredSkill?.toLowerCase()
+          ? `<span style="background-color: rgba(213, 0, 249, 0.2);">${part}</span>`
+          : part
+      )
+      .join('');
+
+    const lines = renderText.split('<br />');
+    return lines
+      .map((line) => {
+        const match = line.match(/^([\d.]+)-([\d.]+):\s(.*)$/);
+        if (!match) return line;
+
+        const start_t = parseFloat(match[1]);
+        return `
+					<span 
+						style="cursor: pointer; display: block;" 
+						onclick="document.getElementById('recorded-video').currentTime = ${start_t}; document.getElementById('recorded-video').play();"
+					>
+						${line}
+					</span>`;
+      })
+      .join('');
   };
 
   useEffect(() => {
     if (jsonResult && jsonResult.transcript) {
       console.log('Calling chat API');
-      modifyTranscript(jsonResult.transcript).then((modified) => {
+      const tmpTranscript = jsonResult.transcript
+        .map((item) => `${item.start_t}-${item.end_t}: ${item.text}`)
+        .join('<br />');
+      setTranscript(tmpTranscript);
+      modifyTranscript(tmpTranscript).then((modified) => {
         extractSkills(modified);
         summarizeKeyPoints(modified);
       });
@@ -215,9 +231,14 @@ const ResultDisplay: React.FC = () => {
               )
             )
           ) : (
-            <Typography variant="body1">
-              {renderHighlightedTranscript(jsonResult.transcript)}
-            </Typography>
+            <>
+              <Typography
+                variant="body1"
+                dangerouslySetInnerHTML={{
+                  __html: transcript ? renderHighlighted(transcript) : '',
+                }}
+              />
+            </>
           )}
         </Box>
       </Box>
@@ -228,9 +249,12 @@ const ResultDisplay: React.FC = () => {
           <Typography variant="h6" gutterBottom>
             Modified Transcript
           </Typography>
-          <Typography variant="body1">
-            {renderHighlightedTranscript(modifiedTranscript)}
-          </Typography>
+          <Typography
+            variant="body1"
+            dangerouslySetInnerHTML={{
+              __html: renderHighlighted(modifiedTranscript),
+            }}
+          />
         </Box>
       )}
 

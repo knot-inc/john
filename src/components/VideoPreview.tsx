@@ -11,7 +11,12 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({ recordedVideoURL }) => (
     <Typography variant="h6" gutterBottom>
       Recorded Video Preview
     </Typography>
-    <video src={recordedVideoURL} controls style={{ width: '80%' }} />
+    <video
+      id="recorded-video"
+      src={recordedVideoURL}
+      controls
+      style={{ width: '80%' }}
+    />
   </Box>
 );
 
