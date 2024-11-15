@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "format": "prettier --write .",
-    "check-format": "prettier --check ."
+    "check-format": "prettier --check .",
+    "check": "pnpm format && pnpm lint"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.687.0",
