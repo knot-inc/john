@@ -9,6 +9,7 @@ import {
   Chip,
 } from '@mui/material';
 import { PieChart } from '@mui/x-charts/PieChart';
+import Markdown from 'react-markdown';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
 
@@ -262,11 +263,21 @@ const ResultDisplay: React.FC = () => {
 
       {/* Key Points Section */}
       {summary && (
-        <Box sx={{ marginBottom: '1.25rem' }}>
+        <Box
+          sx={{
+            marginBottom: '1.25rem',
+            maxWidth: '100%',
+            overflow: 'hidden',
+            wordWrap: 'break-word',
+            whiteSpace: 'normal',
+          }}
+        >
           <Typography variant="h6" gutterBottom>
             Key Points
           </Typography>
-          <Typography variant="body1">{summary}</Typography>
+          <Typography variant="body1" sx={{ paddingLeft: '1.25rem' }}>
+            <Markdown>{summary}</Markdown>
+          </Typography>
         </Box>
       )}
 
