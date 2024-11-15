@@ -34,6 +34,7 @@ const ResultDisplay: React.FC = () => {
   const [skills, setSkills] = useState<
     { originalText: string; correctedSkill: string }[]
   >([]);
+  const [summary, setSummary] = useState<string | null>(null);
   const [showScores, setShowScores] = useState(false);
   const [hoveredSkill, setHoveredSkill] = useState<string | null>(null);
 
@@ -101,6 +102,27 @@ const ResultDisplay: React.FC = () => {
     }
   };
 
+  const summarizeKeyPoints = async (transcript: string) => {
+    try {
+      const response = await axios.post('/api/chat', {
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `Summarize the key points from the following transcript. Focus on questions asked, answers provided, and any significant observations. Return the summary as a list of bullet points. Output just the key points markdown with no other messages.`,
+          },
+          {
+            role: 'user',
+            content: `Transcript: ${transcript}`,
+          },
+        ],
+      });
+      setSummary(response.data.reply);
+    } catch (error) {
+      console.error('Error summarizing key points:', error);
+    }
+  };
+
   const renderHighlightedTranscript = (transcript: string) => {
     if (!transcript) return null;
 
@@ -125,6 +147,7 @@ const ResultDisplay: React.FC = () => {
       console.log('Calling chat API');
       modifyTranscript(jsonResult.transcript).then((modified) => {
         extractSkills(modified);
+        summarizeKeyPoints(modified);
       });
     }
   }, [jsonResult]);
@@ -234,6 +257,16 @@ const ResultDisplay: React.FC = () => {
               />
             ))}
           </Box>
+        </Box>
+      )}
+
+      {/* Key Points Section */}
+      {summary && (
+        <Box sx={{ marginBottom: '1.25rem' }}>
+          <Typography variant="h6" gutterBottom>
+            Key Points
+          </Typography>
+          <Typography variant="body1">{summary}</Typography>
         </Box>
       )}
 
