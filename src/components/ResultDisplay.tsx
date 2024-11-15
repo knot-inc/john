@@ -12,6 +12,8 @@ import { PieChart } from '@mui/x-charts/PieChart';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
 
+//import { useAppContext } from '@/app/appContext';
+//import { JsonResult } from '@/types/jsonResultTypes';
 import jsonResult from '@/lib/dummyJsonResult';
 
 const SkillResponseSchema = z.object({
@@ -19,8 +21,9 @@ const SkillResponseSchema = z.object({
 });
 
 const ResultDisplay: React.FC = () => {
-  //const { jsonResult } = useAppContext() as { jsonResult: JsonResult };
-
+  const [modifiedTranscript, setModifiedTranscript] = useState<string | null>(
+    null
+  );
   const [skills, setSkills] = useState<string[]>([]);
   const [showScores, setShowScores] = useState(false);
 
@@ -41,6 +44,30 @@ const ResultDisplay: React.FC = () => {
     );
   };
 
+  const modifyTranscript = async (transcript: string) => {
+    try {
+      const response = await axios.post('/api/chat', {
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `Please review and correct the transcript for accuracy. Check for any misheard words, missing words, or punctuation errors. Edit for clarity and readability. Output just the corrected transcript no other messages.`,
+          },
+          {
+            role: 'user',
+            content: `Transcript: ${transcript}`,
+          },
+        ],
+      });
+      const modifiedTranscript = response.data.reply;
+      setModifiedTranscript(modifiedTranscript);
+      return modifiedTranscript;
+    } catch (error) {
+      console.error('Error correcting transcript:', error);
+      return transcript;
+    }
+  };
+
   const extractSkills = async (transcript: string) => {
     try {
       const response = await axios.post('/api/chat', {
@@ -53,8 +80,6 @@ const ResultDisplay: React.FC = () => {
         ],
         response_format: zodResponseFormat(SkillResponseSchema, 'skills'),
       });
-      console.log(response);
-
       const extractedSkills = JSON.parse(response.data.reply).skills || [];
       setSkills(extractedSkills);
     } catch (error) {
@@ -63,10 +88,13 @@ const ResultDisplay: React.FC = () => {
   };
 
   useEffect(() => {
-    if (jsonResult.transcript) {
-      extractSkills(jsonResult.transcript);
+    if (jsonResult && jsonResult.transcript) {
+      console.log('Calling chat API');
+      modifyTranscript(jsonResult.transcript).then((modified) => {
+        extractSkills(modified);
+      });
     }
-  }, [jsonResult.transcript]);
+  }, [jsonResult]);
 
   return jsonResult === null ? null : (
     <Card sx={{ padding: '1.25rem', marginTop: '1.25rem' }}>
@@ -134,6 +162,16 @@ const ResultDisplay: React.FC = () => {
           )}
         </Box>
       </Box>
+
+      {/* Modified Transcript Section */}
+      {modifiedTranscript && (
+        <Box sx={{ marginBottom: '1.25rem' }}>
+          <Typography variant="h6" gutterBottom>
+            Modified Transcript
+          </Typography>
+          <Typography variant="body1">{modifiedTranscript}</Typography>
+        </Box>
+      )}
 
       {/* Skills Section */}
       {skills.length > 0 && (
