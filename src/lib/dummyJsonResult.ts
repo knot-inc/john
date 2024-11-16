@@ -103,12 +103,12 @@ const jsonResult = {
     {
       start_t: '0.00',
       end_t: '8.12',
-      text: "Hello, I'm Masa Ishihara, an undergraduate student with over 10 years of experience",
+      text: "Hello, I'm Masa Ishihara, an undergraduate student with over 10 years experience", // Missing "of"
     },
     {
       start_t: '8.12',
       end_t: '10.40',
-      text: 'in programming as a hobby.',
+      text: 'in programming as hobby.', // Missing "a"
     },
     {
       start_t: '10.40',
