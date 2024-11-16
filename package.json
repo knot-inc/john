@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "format": "prettier --write .",
-    "check-format": "prettier --check ."
+    "check-format": "prettier --check .",
+    "pre-push": "pnpm format && pnpm lint && docker compose up --build prod"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.687.0",
@@ -27,6 +28,7 @@
     "openai": "^4.72.0",
     "react": "19.0.0-rc-66855b96-20241106",
     "react-dom": "19.0.0-rc-66855b96-20241106",
+    "react-markdown": "^9.0.1",
     "redis": "^4.7.0",
     "zod": "^3.23.8"
   },

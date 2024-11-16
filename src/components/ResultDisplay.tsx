@@ -9,20 +9,36 @@ import {
   Chip,
 } from '@mui/material';
 import { PieChart } from '@mui/x-charts/PieChart';
+import Markdown from 'react-markdown';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
 
-import jsonResult from '@/lib/dummyJsonResult';
+import { useAppContext } from '@/app/appContext';
+import { JsonResult } from '@/types/jsonResultTypes';
+//import jsonResult from '@/lib/dummyJsonResult';
 
 const SkillResponseSchema = z.object({
-  skills: z.array(z.string()),
+  skills: z.array(
+    z.object({
+      originalText: z.string(),
+      correctedSkill: z.string(),
+    })
+  ),
 });
 
 const ResultDisplay: React.FC = () => {
-  //const { jsonResult } = useAppContext() as { jsonResult: JsonResult };
+  const { jsonResult } = useAppContext() as { jsonResult: JsonResult };
 
-  const [skills, setSkills] = useState<string[]>([]);
+  const [transcript, setTranscript] = useState<string | null>(null);
+  const [modifiedTranscript, setModifiedTranscript] = useState<string | null>(
+    null
+  );
+  const [skills, setSkills] = useState<
+    { originalText: string; correctedSkill: string }[]
+  >([]);
+  const [summary, setSummary] = useState<string | null>(null);
   const [showScores, setShowScores] = useState(false);
+  const [hoveredSkill, setHoveredSkill] = useState<string | null>(null);
 
   const calculateTopAccents = (accents: Record<string, number>) => {
     return Object.entries(accents)
@@ -41,20 +57,46 @@ const ResultDisplay: React.FC = () => {
     );
   };
 
-  const extractSkills = async (transcript: string) => {
+  const modifyTranscript = async (text: string) => {
     try {
       const response = await axios.post('/api/chat', {
         model: 'gpt-4o-mini',
         messages: [
           {
+            role: 'system',
+            content: `Please review and correct the transcript for accuracy. Check for any misheard words, missing words, or punctuation errors. Edit for clarity and readability. Output just the corrected transcript no other messages. \nYou should output html, each line format: start_t-end_t: text <br />`,
+          },
+          {
             role: 'user',
-            content: `Extract skills from the following transcript: ${transcript}`,
+            content: `Transcript: ${text}`,
+          },
+        ],
+      });
+      const modifiedTranscript = response.data.reply;
+      setModifiedTranscript(modifiedTranscript);
+      return modifiedTranscript;
+    } catch (error) {
+      console.error('Error correcting transcript:', error);
+      return text;
+    }
+  };
+
+  const extractSkills = async (text: string) => {
+    try {
+      const response = await axios.post('/api/chat', {
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `Extract technology skills from the following transcript. Return each identified skill term with its original mention in the transcript, and provide the standardized skill term, if different. Use standardized terminology similar to those found in Wikipedia technology skill entries.`,
+          },
+          {
+            role: 'user',
+            content: `Transcript: ${text}`,
           },
         ],
         response_format: zodResponseFormat(SkillResponseSchema, 'skills'),
       });
-      console.log(response);
-
       const extractedSkills = JSON.parse(response.data.reply).skills || [];
       setSkills(extractedSkills);
     } catch (error) {
@@ -62,11 +104,70 @@ const ResultDisplay: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    if (jsonResult.transcript) {
-      extractSkills(jsonResult.transcript);
+  const summarizeKeyPoints = async (transcript: string) => {
+    try {
+      const response = await axios.post('/api/chat', {
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `Summarize the key points from the following transcript. Focus on questions asked, answers provided, and any significant observations. Return the summary as a list of bullet points. Output just the key points markdown with no other messages.`,
+          },
+          {
+            role: 'user',
+            content: `Transcript: ${transcript}`,
+          },
+        ],
+      });
+      setSummary(response.data.reply);
+    } catch (error) {
+      console.error('Error summarizing key points:', error);
     }
-  }, [jsonResult.transcript]);
+  };
+
+  const renderHighlighted = (text: string) => {
+    if (!text) return '';
+
+    const parts = text.split(new RegExp(`(${hoveredSkill})`, 'gi'));
+    let renderText = parts
+      .map((part) =>
+        part.toLowerCase() === hoveredSkill?.toLowerCase()
+          ? `<span style="background-color: rgba(213, 0, 249, 0.2);">${part}</span>`
+          : part
+      )
+      .join('');
+
+    const lines = renderText.split('<br />');
+    return lines
+      .map((line) => {
+        const match = line.match(/^([\d.]+)-([\d.]+):\s(.*)$/);
+        if (!match) return line;
+
+        const start_t = parseFloat(match[1]);
+        return `
+					<span 
+						style="cursor: pointer; display: block;" 
+						onclick="document.getElementById('recorded-video').currentTime = ${start_t}; document.getElementById('recorded-video').play();"
+					>
+						${line}
+					</span>`;
+      })
+      .join('');
+  };
+
+  useEffect(() => {
+    if (jsonResult && jsonResult.transcript) {
+      console.log('Calling chat API');
+      const tmpTranscript = jsonResult.transcript
+        .map((item) => `${item.start_t}-${item.end_t}: ${item.text}`)
+        .join('<br />');
+      setTranscript(tmpTranscript);
+      modifyTranscript(tmpTranscript).then((modified) => {
+        extractSkills(modified);
+        summarizeKeyPoints(modified);
+      });
+    }
+  }, [jsonResult]);
 
   return jsonResult === null ? null : (
     <Card sx={{ padding: '1.25rem', marginTop: '1.25rem' }}>
@@ -130,10 +231,32 @@ const ResultDisplay: React.FC = () => {
               )
             )
           ) : (
-            <Typography variant="body1">{jsonResult.transcript}</Typography>
+            <>
+              <Typography
+                variant="body1"
+                dangerouslySetInnerHTML={{
+                  __html: transcript ? renderHighlighted(transcript) : '',
+                }}
+              />
+            </>
           )}
         </Box>
       </Box>
+
+      {/* Modified Transcript Section */}
+      {modifiedTranscript && (
+        <Box sx={{ marginBottom: '1.25rem' }}>
+          <Typography variant="h6" gutterBottom>
+            Modified Transcript
+          </Typography>
+          <Typography
+            variant="body1"
+            dangerouslySetInnerHTML={{
+              __html: renderHighlighted(modifiedTranscript),
+            }}
+          />
+        </Box>
+      )}
 
       {/* Skills Section */}
       {skills.length > 0 && (
@@ -142,15 +265,43 @@ const ResultDisplay: React.FC = () => {
             Skills
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-            {skills.map((skill, index) => (
+            {skills.map(({ originalText, correctedSkill }, index) => (
               <Chip
                 key={index}
-                label={skill}
-                color="primary"
+                label={correctedSkill}
                 variant="outlined"
+                color={hoveredSkill === originalText ? 'secondary' : 'primary'}
+                onMouseEnter={() => setHoveredSkill(originalText)}
+                onMouseLeave={() => setHoveredSkill(null)}
+                onClick={() =>
+                  window.open(
+                    `https://www.google.com/search?q=${correctedSkill}`,
+                    '_blank'
+                  )
+                }
               />
             ))}
           </Box>
+        </Box>
+      )}
+
+      {/* Key Points Section */}
+      {summary && (
+        <Box
+          sx={{
+            marginBottom: '1.25rem',
+            maxWidth: '100%',
+            overflow: 'hidden',
+            wordWrap: 'break-word',
+            whiteSpace: 'normal',
+          }}
+        >
+          <Typography variant="h6" gutterBottom>
+            Key Points
+          </Typography>
+          <Typography variant="body1" sx={{ paddingLeft: '1.25rem' }}>
+            <Markdown>{summary}</Markdown>
+          </Typography>
         </Box>
       )}
 
