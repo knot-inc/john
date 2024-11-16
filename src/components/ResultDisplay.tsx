@@ -7,6 +7,13 @@ import {
   FormControlLabel,
   Switch,
   Chip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
 } from '@mui/material';
 import { PieChart } from '@mui/x-charts/PieChart';
 import Markdown from 'react-markdown';
@@ -26,6 +33,15 @@ const SkillResponseSchema = z.object({
   ),
 });
 
+const GrammarCheckResponseSchema = z.object({
+  grammarIssues: z.array(
+    z.object({
+      text: z.string(),
+      explanation: z.string(),
+    })
+  ),
+});
+
 const ResultDisplay: React.FC = () => {
   const { jsonResult } = useAppContext() as { jsonResult: JsonResult };
 
@@ -37,8 +53,12 @@ const ResultDisplay: React.FC = () => {
     { originalText: string; correctedSkill: string }[]
   >([]);
   const [summary, setSummary] = useState<string | null>(null);
+  const [grammarIssues, setGrammarIssues] = useState<
+    { text: string; explanation: string }[]
+  >([]);
+
   const [showScores, setShowScores] = useState(false);
-  const [hoveredSkill, setHoveredSkill] = useState<string | null>(null);
+  const [highlightText, setHighlightText] = useState<string | null>(null);
 
   const calculateTopAccents = (accents: Record<string, number>) => {
     return Object.entries(accents)
@@ -55,6 +75,32 @@ const ResultDisplay: React.FC = () => {
     return Object.entries(token_scores).filter(
       ([token]) => !/^<\|.*\|>$/.test(token)
     );
+  };
+
+  const checkGrammar = async (text: string) => {
+    try {
+      const response = await axios.post('/api/chat', {
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `Identify grammar mistakes in the provided transcript. Return each mistake along with an explanation of the issue. The response should be in JSON format.`,
+          },
+          {
+            role: 'user',
+            content: `Transcript: ${text}`,
+          },
+        ],
+        response_format: zodResponseFormat(
+          GrammarCheckResponseSchema,
+          'grammarIssues'
+        ),
+      });
+      const grammarData = JSON.parse(response.data.reply).grammarIssues || [];
+      setGrammarIssues(grammarData);
+    } catch (error) {
+      console.error('Error performing grammar check:', error);
+    }
   };
 
   const modifyTranscript = async (text: string) => {
@@ -128,10 +174,10 @@ const ResultDisplay: React.FC = () => {
   const renderHighlighted = (text: string) => {
     if (!text) return '';
 
-    const parts = text.split(new RegExp(`(${hoveredSkill})`, 'gi'));
+    const parts = text.split(new RegExp(`(${highlightText})`, 'gi'));
     let renderText = parts
       .map((part) =>
-        part.toLowerCase() === hoveredSkill?.toLowerCase()
+        part.toLowerCase() === highlightText?.toLowerCase()
           ? `<span style="background-color: rgba(213, 0, 249, 0.2);">${part}</span>`
           : part
       )
@@ -162,6 +208,7 @@ const ResultDisplay: React.FC = () => {
         .map((item) => `${item.start_t}-${item.end_t}: ${item.text}`)
         .join('<br />');
       setTranscript(tmpTranscript);
+      checkGrammar(tmpTranscript);
       modifyTranscript(tmpTranscript).then((modified) => {
         extractSkills(modified);
         summarizeKeyPoints(modified);
@@ -243,6 +290,49 @@ const ResultDisplay: React.FC = () => {
         </Box>
       </Box>
 
+      {/* Grammar Issues Section */}
+      {grammarIssues.length > 0 && (
+        <Box sx={{ marginBottom: '1.25rem' }}>
+          <Typography variant="h6" gutterBottom>
+            Grammar Issues
+          </Typography>
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>
+                    <strong>Mistake</strong>
+                  </TableCell>
+                  <TableCell>
+                    <strong>Explanation</strong>
+                  </TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {grammarIssues.map(({ text, explanation }, index) => (
+                  <TableRow
+                    key={index}
+                    onMouseEnter={() => setHighlightText(text)}
+                    onMouseLeave={() => setHighlightText(null)}
+                    sx={{
+                      cursor: 'pointer',
+                      backgroundColor:
+                        highlightText === text
+                          ? 'rgba(213, 0, 249, 0.2)'
+                          : 'inherit',
+                      transition: 'background-color 0.2s',
+                    }}
+                  >
+                    <TableCell>{text}</TableCell>
+                    <TableCell>{explanation}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+      )}
+
       {/* Modified Transcript Section */}
       {modifiedTranscript && (
         <Box sx={{ marginBottom: '1.25rem' }}>
@@ -270,9 +360,9 @@ const ResultDisplay: React.FC = () => {
                 key={index}
                 label={correctedSkill}
                 variant="outlined"
-                color={hoveredSkill === originalText ? 'secondary' : 'primary'}
-                onMouseEnter={() => setHoveredSkill(originalText)}
-                onMouseLeave={() => setHoveredSkill(null)}
+                color={highlightText === originalText ? 'secondary' : 'primary'}
+                onMouseEnter={() => setHighlightText(originalText)}
+                onMouseLeave={() => setHighlightText(null)}
                 onClick={() =>
                   window.open(
                     `https://www.google.com/search?q=${correctedSkill}`,
